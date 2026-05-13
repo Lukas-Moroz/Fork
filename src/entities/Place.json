@@ -1,0 +1,27 @@
+{
+  "name": "Place",
+  "type": "object",
+  "properties": {
+    "name": { "type": "string", "description": "Restaurant name" },
+    "cuisine": { "type": "string", "description": "Cuisine type" },
+    "platform": {
+      "type": "string",
+      "enum": ["instagram", "tiktok", "youtube", "x"],
+      "description": "Source platform"
+    },
+    "address": { "type": "string", "description": "Street address" },
+    "coords": {
+      "type": "array",
+      "items": { "type": "number" },
+      "description": "Lat/lng coordinates [lat, lng]"
+    },
+    "link": { "type": "string", "description": "Original content link" },
+    "image": { "type": "string", "description": "Photo URL" },
+    "visited": { "type": "boolean", "default": false },
+    "notes": { "type": "string", "default": "" },
+    "rating": { "type": "number" },
+    "reaction": { "type": "string" },
+    "saved_by_name": { "type": "string", "description": "Display name of who saved it" }
+  },
+  "required": ["name", "cuisine"]
+}
