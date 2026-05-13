@@ -1,0 +1,30 @@
+{
+  "name": "Collection",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Collection name e.g. Date Night, Cheap Eats"
+    },
+    "emoji": {
+      "type": "string",
+      "default": "\ud83d\udccc"
+    },
+    "description": {
+      "type": "string"
+    },
+    "place_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of Place IDs in this collection"
+    },
+    "owner_email": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

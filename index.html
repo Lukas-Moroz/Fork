@@ -1,0 +1,28 @@
+const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="https://db.com/logo_v2.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#2E2E2E" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Fork — Food Discovery Map</title>
+    <script>
+      (function() {
+        var script = document.createElement('script');
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=3FTV4WRHKHADLrAwf0q254wRsw0cy8avuixTIfEGjEO2im28ZrV0JQQJ99CEACYeBjFd1B6JAAAgAZMP1WqP&libraries=places&loading=async';
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

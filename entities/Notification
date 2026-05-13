@@ -1,0 +1,43 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "recipient_email": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "friend_pin",
+        "friend_request",
+        "visited",
+        "invite"
+      ],
+      "default": "friend_pin"
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    },
+    "link": {
+      "type": "string"
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "actor_avatar": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "recipient_email",
+    "title",
+    "body"
+  ]
+}
