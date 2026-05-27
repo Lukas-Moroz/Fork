@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Share2, Check, BookmarkPlus } from 'lucide-react';
+import { ArrowLeft, Share2, Check, BookmarkPlus } from 'lucide-react';
 import { useFork } from '../context/ForkContext';
 import PlaceCard from '../components/fork/PlaceCard';
 
@@ -40,7 +40,7 @@ export default function FriendProfile() {
 
   if (!friend) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-[100dvh]">
         <p className="text-muted-foreground">Friend not found</p>
       </div>
     );
@@ -65,7 +65,6 @@ export default function FriendProfile() {
               alt={friend.name}
               className="w-20 h-20 rounded-full border-4 border-card object-cover"
             />
-            <div className={`absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full border-2 border-card ${friend.online ? 'bg-green-500' : 'bg-gray-400'}`} />
           </div>
         </div>
       </div>
@@ -73,9 +72,6 @@ export default function FriendProfile() {
       {/* Profile Info */}
       <div className="flex flex-col items-center mt-12 mb-5 px-4">
         <h1 className="text-xl font-extrabold">{friend.name}</h1>
-        <span className={`mt-1.5 text-xs px-2.5 py-1 rounded-full font-semibold ${friend.online ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>
-          {friend.online ? '● Online' : 'Offline'}
-        </span>
 
         {/* Stats */}
         <div className="flex gap-5 mt-4">

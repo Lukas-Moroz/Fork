@@ -74,13 +74,19 @@
   }
 }
 
-/* Hide scrollbar for mobile feel */
+/* Safe-area-aware bottom padding for bottom sheets (accounts for iPhone home indicator) */
+.sheet-safe-pb {
+  padding-bottom: max(2.5rem, calc(1rem + env(safe-area-inset-bottom)));
+}
+
+/* Hide scrollbar + lock overscroll so parent page doesn't rubber-band on iOS */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  overscroll-behavior: contain;
 }
 
 /* Leaflet overrides */

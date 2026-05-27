@@ -1,4 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
         }
         setIsLoadingPublicSettings(false);
       } catch (appError) {
-        console.error('App state check failed:', appError);
+        if (import.meta.env.DEV) console.error('App state check failed:', appError);
         
         // Handle app-level errors
         if (appError.status === 403 && appError.data?.extra_data?.reason) {
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }) => {
         setIsLoadingAuth(false);
       }
     } catch (error) {
-      console.error('Unexpected error:', error);
+      if (import.meta.env.DEV) console.error('Unexpected error:', error);
       setAuthError({
         type: 'unknown',
         message: error.message || 'An unexpected error occurred'
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
     } catch (error) {
-      console.error('User auth check failed:', error);
+      if (import.meta.env.DEV) console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       

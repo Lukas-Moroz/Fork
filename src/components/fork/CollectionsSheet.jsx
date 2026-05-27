@@ -1,7 +1,7 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Folder, Check, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Plus, Check, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useFork } from '../../context/ForkContext';
@@ -27,9 +27,14 @@ export default function CollectionsSheet({ open, onClose, addToPlaceId = null })
 
   const loadCollections = async () => {
     setLoading(true);
-    const data = await db.entities.Collection.filter({ owner_email: currentUser.email });
-    setCollections(data);
-    setLoading(false);
+    try {
+      const data = await db.entities.Collection.filter({ owner_email: currentUser.email });
+      setCollections(data);
+    } catch {
+      // Leave collections empty; user can retry by reopening
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -77,7 +82,7 @@ export default function CollectionsSheet({ open, onClose, addToPlaceId = null })
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-10 max-h-[80vh] overflow-y-auto no-scrollbar"
+            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb max-h-[80vh] overflow-y-auto no-scrollbar"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -167,6 +172,7 @@ export default function CollectionsSheet({ open, onClose, addToPlaceId = null })
                       onChange={e => setNewName(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleCreate()}
                       placeholder="Collection name..."
+                      maxLength={60}
                       className="w-full bg-card rounded-lg px-3 py-2 text-sm outline-none"
                     />
                     <div className="flex gap-2">

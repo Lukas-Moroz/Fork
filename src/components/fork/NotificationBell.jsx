@@ -1,7 +1,7 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
-import React, { useState, useEffect } from 'react';
-import { Bell, X, Check } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Bell, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,28 +22,30 @@ export default function NotificationBell() {
   const [notifs, setNotifs] = useState([]);
   const [open, setOpen] = useState(false);
 
+  const loadNotifs = useCallback(async () => {
+    if (!currentUser?.email) return;
+    const data = await db.entities.Notification.filter(
+      { recipient_email: currentUser.email },
+      '-created_date', 20
+    ).catch(() => []);
+    setNotifs(data);
+  }, [currentUser?.email]);
+
   useEffect(() => {
     if (!currentUser?.email) return;
     loadNotifs();
     const unsub = db.entities.Notification.subscribe(event => {
+      // notifs state only contains current user's notifications (pre-filtered on load)
       if (event.type === 'create' && event.data.recipient_email === currentUser.email) {
         setNotifs(prev => [event.data, ...prev]);
       } else if (event.type === 'update') {
-        setNotifs(prev => prev.map(n => n.id === event.id ? event.data : n));
+        setNotifs(prev => prev.map(n => n.id === event.id ? { ...n, ...event.data } : n));
       } else if (event.type === 'delete') {
         setNotifs(prev => prev.filter(n => n.id !== event.id));
       }
     });
     return unsub;
-  }, [currentUser?.email]);
-
-  const loadNotifs = async () => {
-    const data = await db.entities.Notification.filter(
-      { recipient_email: currentUser.email },
-      '-created_date', 20
-    );
-    setNotifs(data);
-  };
+  }, [currentUser?.email, loadNotifs]);
 
   const unreadCount = notifs.filter(n => !n.read).length;
 

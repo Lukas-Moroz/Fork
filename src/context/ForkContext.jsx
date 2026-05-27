@@ -1,6 +1,7 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 
 const ForkContext = createContext();
 
@@ -41,10 +42,12 @@ export function ForkProvider({ children }) {
           setProfile(profiles[0]);
         } else {
           // Auto-create profile for new users
+          const baseHandle = (user.full_name || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const suffix = Math.random().toString(36).slice(2, 6);
           const newProfile = await db.entities.UserProfile.create({
             user_email: user.email,
             display_name: user.full_name || 'Foodie',
-            username: `@${(user.full_name || 'user').toLowerCase().replace(/\s+/g, '')}`,
+            username: `@${baseHandle}_${suffix}`,
             bio: 'Food explorer 🍜',
             location: '',
             avatar: DEFAULT_PROFILE.avatar,
@@ -75,6 +78,7 @@ export function ForkProvider({ children }) {
             online: false,
             lastActive: null,
             email: fp.user_email,
+            notificationsEnabled: fp.notifications_enabled !== false,
           }));
           setFriends(validFriends);
           resolvedFriendEmails = validFriends.map(f => f.email);
@@ -126,7 +130,15 @@ export function ForkProvider({ children }) {
       // Merge and deduplicate by id
       const merged = {};
       results.flat().forEach(p => { merged[p.id] = p; });
-      setPlaces(Object.values(merged));
+      const mergedPlaces = Object.values(merged);
+      setPlaces(mergedPlaces);
+
+      // Update pin counts on friends based on loaded places
+      const pinCounts = {};
+      mergedPlaces.forEach(p => {
+        if (p.created_by) pinCounts[p.created_by] = (pinCounts[p.created_by] || 0) + 1;
+      });
+      setFriends(prev => prev.map(f => ({ ...f, pinCount: pinCounts[f.email] || 0 })));
     } catch (err) {
       if (err.message && err.message.includes('not found in app')) {
         setPlaces([]);
@@ -163,7 +175,7 @@ export function ForkProvider({ children }) {
   }, [friends, currentUser?.email]);
 
   // Profile helpers — map entity fields to legacy shape consumed by UI
-  const profileForUI = profile ? {
+  const profileForUI = useMemo(() => profile ? {
     name: profile.display_name || 'You',
     username: profile.username || '@you',
     bio: profile.bio || '',
@@ -177,7 +189,7 @@ export function ForkProvider({ children }) {
     location: '',
     avatar: DEFAULT_PROFILE.avatar,
     cuisinePrefs: [],
-  };
+  }, [profile]);
 
   const updateProfile = async (updates) => {
     if (!profile) return;
@@ -203,7 +215,7 @@ export function ForkProvider({ children }) {
     coords: Array.isArray(p.coords) && p.coords.length === 2 ? p.coords : null,
   });
 
-  const placesForUI = places.map(mapPlace);
+  const placesForUI = useMemo(() => places.map(mapPlace), [places, currentUser?.email]);
 
   const addPlace = async (place) => {
     // Optimistic: show immediately, then sync
@@ -227,14 +239,16 @@ export function ForkProvider({ children }) {
         image: place.image,
         rating: place.rating || null,
         price_range: place.price_range || null,
+        description: place.description || '',
         visited: false,
         notes: place.notes || '',
         saved_by_name: profileForUI.name,
       });
       setPlaces(prev => prev.map(p => p.id === tempId ? created : p));
-      // Notify friends about the new pin
-      if (friends.length > 0) {
-        await Promise.all(friends.map(f =>
+      // Notify friends about the new pin (only those who have notifications enabled)
+      const notifiableFriends = friends.filter(f => f.notificationsEnabled !== false);
+      if (notifiableFriends.length > 0) {
+        await Promise.all(notifiableFriends.map(f =>
           db.entities.Notification.create({
             recipient_email: f.email,
             type: 'friend_pin',
@@ -246,26 +260,32 @@ export function ForkProvider({ children }) {
           }).catch(() => {})
         ));
       }
-    } catch (err) {
+    } catch {
       setPlaces(prev => prev.filter(p => p.id !== tempId));
+      toast.error('Failed to save pin. Please try again.');
     }
   };
 
   const updatePlace = async (id, updates) => {
-    // Optimistic update — merge locally, don't overwrite with server response
-    // (server response may not include all fields from optimistic state)
+    const snapshot = places.find(p => p.id === id);
     setPlaces(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
-    await db.entities.Place.update(id, updates).catch(() => {
-      // Revert on error
-      loadPlaces(currentUser, friends.map(f => f.email));
-    });
+    try {
+      await db.entities.Place.update(id, updates);
+    } catch {
+      if (snapshot) setPlaces(prev => prev.map(p => p.id === id ? snapshot : p));
+      toast.error('Failed to update. Please try again.');
+    }
   };
 
   const deletePlace = async (id) => {
+    const snapshot = places.find(p => p.id === id);
     setPlaces(prev => prev.filter(p => p.id !== id));
-    await db.entities.Place.delete(id).catch(() => {
-      loadPlaces(currentUser, friends.map(f => f.email));
-    });
+    try {
+      await db.entities.Place.delete(id);
+    } catch {
+      if (snapshot) setPlaces(prev => [snapshot, ...prev]);
+      toast.error('Failed to delete. Please try again.');
+    }
   };
 
   const acceptRequest = async (id) => {

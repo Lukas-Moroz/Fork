@@ -1,4 +1,3 @@
-import React from 'react';
 import L from 'leaflet';
 
 const FALLBACK_IMG = 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=60&h=60&fit=crop';

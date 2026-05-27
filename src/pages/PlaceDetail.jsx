@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, ExternalLink, Check, Star, Navigation, Share2, Trash2, Pencil, Folder } from 'lucide-react';
 import { useFork } from '../context/ForkContext';
@@ -9,7 +9,7 @@ import CollectionsSheet from '../components/fork/CollectionsSheet';
 export default function PlaceDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { places, updatePlace, deletePlace } = useFork();
+  const { places, placesLoading, updatePlace, deletePlace } = useFork();
 
   const place = places.find(p => p.id === id);
 
@@ -25,29 +25,51 @@ export default function PlaceDetail() {
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [editingCuisine, setEditingCuisine] = useState(false);
   const [editCuisine, setEditCuisine] = useState('');
+  const [editingPrice, setEditingPrice] = useState(false);
 
   // Sync notes when place loads async
   useEffect(() => {
     if (place?.notes !== undefined) setNotes(place.notes);
   }, [place?.id]);
 
-  if (!place) {
+  // Must be before early returns to satisfy Rules of Hooks
+  const nearbyPlaces = useMemo(() => {
+    if (!place) return [];
+    const sameCuisine = places.filter(p => p.id !== place.id && p.cuisine === place.cuisine).slice(0, 3);
+    const sameCuisineIds = new Set(sameCuisine.map(p => p.id));
+    const needed = 3 - sameCuisine.length;
+    const others = needed > 0
+      ? places.filter(p => p.id !== place.id && !sameCuisineIds.has(p.id)).slice(0, needed)
+      : [];
+    return [...sameCuisine, ...others];
+  }, [places, place?.id, place?.cuisine]);
+
+  if (!place && placesLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-3">
+      <div className="flex flex-col items-center justify-center h-[100dvh] gap-3">
         <div className="w-7 h-7 border-[3px] border-primary/30 border-t-primary rounded-full animate-spin" />
         <p className="text-muted-foreground text-sm">Loading place...</p>
       </div>
     );
   }
 
+  if (!place && !placesLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[100dvh] gap-4">
+        <p className="text-4xl">🍴</p>
+        <p className="font-bold text-lg">Place not found</p>
+        <p className="text-sm text-muted-foreground">This pin may have been deleted.</p>
+        <button
+          onClick={() => navigate('/', { replace: true })}
+          className="mt-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm"
+        >
+          Back to map
+        </button>
+      </div>
+    );
+  }
+
   const isMine = place.savedBy === 'me';
-  const sameCuisine = places.filter(p => p.id !== place.id && p.cuisine === place.cuisine).slice(0, 3);
-  const otherNeeded = Math.max(0, 3 - sameCuisine.length);
-  const sameCuisineIds = new Set(sameCuisine.map(p => p.id));
-  const otherPlaces = otherNeeded > 0
-    ? places.filter(p => p.id !== place.id && !sameCuisineIds.has(p.id)).slice(0, otherNeeded)
-    : [];
-  const nearbyPlaces = [...sameCuisine, ...otherPlaces];
   const hasCoords = place.coords && place.coords.length === 2 && place.coords[0] && place.coords[1];
 
   const handleVisitedToggle = () => {
@@ -74,7 +96,7 @@ export default function PlaceDetail() {
 
   const handleDelete = () => {
     deletePlace(place.id);
-    navigate(-1);
+    navigate('/', { replace: true });
   };
 
   const handleNameSave = () => {
@@ -141,6 +163,7 @@ export default function PlaceDetail() {
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setEditingName(false); }}
+                    maxLength={120}
                     className="flex-1 text-xl font-extrabold bg-muted rounded-lg px-2 py-0.5 outline-none"
                   />
                   <button onClick={handleNameSave} className="text-primary text-xs font-semibold">Save</button>
@@ -163,6 +186,7 @@ export default function PlaceDetail() {
                       value={editCuisine}
                       onChange={e => setEditCuisine(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleCuisineSave(); if (e.key === 'Escape') setEditingCuisine(false); }}
+                      maxLength={60}
                       className="text-xs bg-muted rounded-lg px-2 py-0.5 outline-none w-24"
                     />
                     <button onClick={handleCuisineSave} className="text-primary text-[10px] font-semibold">Save</button>
@@ -175,8 +199,26 @@ export default function PlaceDetail() {
                     {place.cuisine}
                   </span>
                 )}
-                {place.price_range && (
-                  <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-medium">{place.price_range}</span>
+                {isMine && editingPrice ? (
+                  <div className="flex items-center gap-1">
+                    {['$', '$$', '$$$', '$$$$'].map(p => (
+                      <button
+                        key={p}
+                        onClick={() => { updatePlace(place.id, { price_range: place.price_range === p ? null : p }); setEditingPrice(false); }}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${place.price_range === p ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button onClick={() => setEditingPrice(false)} className="text-[10px] text-muted-foreground ml-1">✕</button>
+                  </div>
+                ) : (
+                  <span
+                    onClick={() => isMine && setEditingPrice(true)}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${place.price_range ? 'bg-muted text-muted-foreground' : ''} ${isMine ? 'cursor-pointer hover:bg-muted' : ''}`}
+                  >
+                    {place.price_range || (isMine ? <span className="text-muted-foreground/50">+ price</span> : null)}
+                  </span>
                 )}
               </div>
             </div>
@@ -205,6 +247,11 @@ export default function PlaceDetail() {
               )}
             </div>
           </div>
+
+          {/* Description — shown when captured from LLM extraction */}
+          {place.description && (
+            <p className="text-sm text-muted-foreground leading-relaxed">{place.description}</p>
+          )}
 
           {/* Watch original — only show if there's a link */}
           {place.link && (
@@ -302,8 +349,10 @@ export default function PlaceDetail() {
               onBlur={() => { if (notes.trim() !== (place.notes || '').trim()) handleNotesSave(); }}
               placeholder="Add your thoughts..."
               rows={3}
+              maxLength={1000}
               className="w-full mt-0.5 bg-muted rounded-xl p-3 text-sm outline-none resize-none placeholder:text-muted-foreground/50"
             />
+            <p className="text-[10px] text-muted-foreground/60 text-right mt-0.5">{notes.length}/1000</p>
           </div>
 
           {/* Delete — only for own pins */}

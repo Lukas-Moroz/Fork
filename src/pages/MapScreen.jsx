@@ -1,9 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useNavigate, Link } from 'react-router-dom';
 import { Plus, Search, X, Crosshair, MapPin } from 'lucide-react';
 import { useFork } from '../context/ForkContext';
 import { createPinIcon } from '../components/fork/MapPinIcon';
+import { matchesFilter } from '../utils/placeFilters';
+import { useDebounce } from '../hooks/useDebounce';
+
+const NOMINATIM_HEADERS = { 'User-Agent': 'ForkApp/1.0 (food discovery app)' };
 import BottomSheet from '../components/fork/BottomSheet';
 import AddPlaceModal from '../components/fork/AddPlaceModal';
 import NotificationBell from '../components/fork/NotificationBell';
@@ -15,15 +19,7 @@ function MapPins({ filter }) {
   const { places } = useFork();
   const navigate = useNavigate();
 
-  // Only render places that have valid coords
-  const visible = places.filter(p => {
-    if (!p.coords) return false;
-    if (filter === 'Mine') return p.savedBy === 'me';
-    if (filter === 'Friends') return p.savedBy !== 'me';
-    if (filter === 'Visited') return p.visited;
-    if (filter === 'Wishlist') return !p.visited;
-    return true;
-  });
+  const visible = useMemo(() => places.filter(p => matchesFilter(p, filter)), [places, filter]);
 
   return (
     <>
@@ -53,15 +49,16 @@ function MapPins({ filter }) {
 
 function MapSearchControl({ query }) {
   const map = useMap();
+  const debouncedQuery = useDebounce(query, 500);
   React.useEffect(() => {
-    if (!query.trim()) return;
-    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`)
+    if (!debouncedQuery.trim()) return;
+    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(debouncedQuery)}&format=json&limit=1`, { headers: NOMINATIM_HEADERS })
       .then(r => r.json())
       .then(data => {
         if (data[0]) map.flyTo([parseFloat(data[0].lat), parseFloat(data[0].lon)], 13, { duration: 1.2 });
       })
       .catch(() => {});
-  }, [query]);
+  }, [debouncedQuery]);
   return null;
 }
 
@@ -90,25 +87,19 @@ function LocateButton() {
 }
 
 export default function MapScreen() {
-  const { profile, places, placesLoading } = useFork();
+  const { profile, places, placesLoading, placesError } = useFork();
   const [showAddModal, setShowAddModal] = useState(false);
   const [filter, setFilter] = useState('All');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  // Center on first own pin with coords, or NYC default
-  const firstPinWithCoords = places.find(p => p.coords && p.savedBy === 'me') || places.find(p => p.coords);
-  const center = firstPinWithCoords?.coords || [40.7128, -74.0060];
 
-  // Visible pin count for filter badge
-  const visibleCount = places.filter(p => {
-    if (!p.coords) return false;
-    if (filter === 'Mine') return p.savedBy === 'me';
-    if (filter === 'Friends') return p.savedBy !== 'me';
-    if (filter === 'Visited') return p.visited;
-    if (filter === 'Wishlist') return !p.visited;
-    return true;
-  }).length;
+  const center = useMemo(() => {
+    const pin = places.find(p => p.coords && p.savedBy === 'me') || places.find(p => p.coords);
+    return pin?.coords || [40.7128, -74.0060];
+  }, [places]);
+
+  const visibleCount = useMemo(() => places.filter(p => matchesFilter(p, filter)).length, [places, filter]);
 
   return (
     <div className="relative h-[calc(100dvh-56px)] w-full">
@@ -211,8 +202,15 @@ export default function MapScreen() {
         <Plus className="w-7 h-7" strokeWidth={2.5} />
       </button>
 
+      {/* Places error banner */}
+      {placesError && (
+        <div className="absolute top-[72px] left-1/2 -translate-x-1/2 z-[20] bg-destructive/90 text-white text-xs px-4 py-2 rounded-full shadow-lg whitespace-nowrap">
+          Failed to load pins — check your connection
+        </div>
+      )}
+
       {/* Empty state nudge */}
-      {!placesLoading && places.filter(p => p.coords).length === 0 && (
+      {!placesLoading && !placesError && places.filter(p => p.coords).length === 0 && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[20] pointer-events-none">
           <div className="bg-card/90 backdrop-blur-sm rounded-2xl px-5 py-4 shadow-xl text-center max-w-[220px]">
             <MapPin className="w-8 h-8 text-primary mx-auto mb-2" />

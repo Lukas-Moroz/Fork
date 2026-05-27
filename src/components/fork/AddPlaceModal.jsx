@@ -1,12 +1,17 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
 import React, { useState, useEffect } from 'react';
-import { X, Link as LinkIcon, Loader2, Check, MapPin, PenLine } from 'lucide-react';
+import { X, Link as LinkIcon, Loader2, Check, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useFork } from '../../context/ForkContext';
 import PlatformBadge from './PlatformBadge';
 import RestaurantSearch from './RestaurantSearch';
+import { placeSchema } from '@/lib/schemas';
+
+const NOMINATIM_HEADERS = { 'User-Agent': 'ForkApp/1.0 (food discovery app)' };
 
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop';
 
@@ -25,19 +30,25 @@ export default function AddPlaceModal({ open, onClose }) {
   const [linkValue, setLinkValue] = useState('');
   const [result, setResult] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
-
-  // Manual entry state
-  const [manual, setManual] = useState({ name: '', cuisine: '', address: '', notes: '' });
+  const [linkError, setLinkError] = useState('');
   const [geocoding, setGeocoding] = useState(false);
+
+  const { register, handleSubmit, formState: { errors }, reset: resetManual } = useForm({
+    resolver: zodResolver(placeSchema),
+    defaultValues: { name: '', cuisine: '', address: '', notes: '' },
+  });
 
   const handleAnalyze = async () => {
     if (!linkValue.trim()) return;
+    try { new URL(linkValue); } catch { setLinkError('Please enter a valid URL'); return; }
+    setLinkError('');
+    const safeUrl = linkValue.trim().replace(/[\r\n]/g, '');
     setStep(2);
     setAnalyzing(true);
     try {
-      const platform = detectPlatform(linkValue);
+      const platform = detectPlatform(safeUrl);
       const res = await db.integrations.Core.InvokeLLM({
-        prompt: `Extract restaurant information from this social media URL: ${linkValue}. If you can't access the URL, infer a plausible restaurant based on the URL structure. Return a restaurant with a real-sounding name, cuisine, address (city-level is fine), and coordinates. Use New York, NY as default location if unknown.`,
+        prompt: `Extract restaurant information from this social media URL: ${safeUrl}. If you can't access the URL, infer a plausible restaurant based on the URL structure. Return a restaurant with a real-sounding name, cuisine, address (city-level is fine), and coordinates. Use New York, NY as default location if unknown.`,
         add_context_from_internet: true,
         response_json_schema: {
           type: 'object',
@@ -69,11 +80,11 @@ export default function AddPlaceModal({ open, onClose }) {
         cuisine: res.cuisine || 'Restaurant',
         address: res.address || 'Address unknown',
         coords: (res.lat && res.lng) ? [res.lat, res.lng] : null,
-        link: linkValue,
+        link: safeUrl,
         platform,
         image: `https://images.unsplash.com/photo-${photoId}?w=400&h=300&fit=crop`,
         description: res.description || '',
-        rating: 4.3,
+        rating: null,
       });
       setStep(3);
     } catch (e) {
@@ -83,8 +94,8 @@ export default function AddPlaceModal({ open, onClose }) {
         cuisine: 'Restaurant',
         address: '',
         coords: null,
-        link: linkValue,
-        platform: detectPlatform(linkValue),
+        link: safeUrl,
+        platform: detectPlatform(safeUrl),
         image: FALLBACK_IMAGE,
         rating: null,
       });
@@ -94,30 +105,28 @@ export default function AddPlaceModal({ open, onClose }) {
     }
   };
 
-  const handleManualConfirm = async () => {
-    if (!manual.name.trim()) return;
+  const handleManualConfirm = async (data) => {
     setGeocoding(true);
     let coords = null;
-    if (manual.address.trim()) {
+    if (data.address?.trim()) {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manual.address)}&format=json&limit=1`);
-        const data = await res.json();
-        if (data[0]) coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(data.address)}&format=json&limit=1`, { headers: NOMINATIM_HEADERS });
+        const json = await res.json();
+        if (json[0]) coords = [parseFloat(json[0].lat), parseFloat(json[0].lon)];
       } catch {}
     }
     setGeocoding(false);
-    const placeToAdd = {
-      name: manual.name,
-      cuisine: manual.cuisine || 'Restaurant',
-      address: manual.address || '',
-      coords: coords,
+    addPlace({
+      name: data.name,
+      cuisine: data.cuisine || 'Restaurant',
+      address: data.address || '',
+      coords,
       link: '',
       platform: 'instagram',
       image: FALLBACK_IMAGE,
       rating: null,
-      notes: manual.notes || '',
-    };
-    addPlace(placeToAdd);
+      notes: data.notes || '',
+    });
     setStep(4);
     setTimeout(() => { handleReset(); onClose(); }, 2000);
   };
@@ -131,8 +140,9 @@ export default function AddPlaceModal({ open, onClose }) {
   const handleReset = () => {
     setStep(1);
     setLinkValue('');
+    setLinkError('');
     setResult(null);
-    setManual({ name: '', cuisine: '', address: '', notes: '' });
+    resetManual({ name: '', cuisine: '', address: '', notes: '' });
   };
 
   const handleSearchSelect = (restaurant) => {
@@ -155,6 +165,13 @@ export default function AddPlaceModal({ open, onClose }) {
     { id: 'manual', label: '✏️ Manual' },
   ];
 
+  const MANUAL_FIELDS = [
+    { key: 'name', label: 'Name *', placeholder: 'Restaurant name', max: 120 },
+    { key: 'cuisine', label: 'Cuisine', placeholder: 'Japanese, Italian...', max: 60 },
+    { key: 'address', label: 'Address', placeholder: '123 Main St, City', max: 200 },
+    { key: 'notes', label: 'Notes', placeholder: 'Why you want to try it...', max: 1000 },
+  ];
+
   return (
     <AnimatePresence>
       <motion.div
@@ -169,7 +186,7 @@ export default function AddPlaceModal({ open, onClose }) {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-8 max-h-[90vh] overflow-y-auto no-scrollbar"
+          className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb max-h-[90vh] overflow-y-auto no-scrollbar"
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
@@ -214,12 +231,14 @@ export default function AddPlaceModal({ open, onClose }) {
                   type="url"
                   placeholder="Paste link here..."
                   value={linkValue}
-                  onChange={e => setLinkValue(e.target.value)}
+                  onChange={e => { setLinkValue(e.target.value); setLinkError(''); }}
                   onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
                   className="flex-1 bg-transparent text-sm py-3 outline-none placeholder:text-muted-foreground/60"
+                  maxLength={2048}
                   autoFocus
                 />
               </div>
+              {linkError && <p className="text-xs text-destructive px-1">{linkError}</p>}
               <button
                 onClick={handleAnalyze}
                 disabled={!linkValue.trim()}
@@ -232,32 +251,30 @@ export default function AddPlaceModal({ open, onClose }) {
 
           {/* STEP 1 — Manual tab */}
           {step === 1 && tab === 'manual' && (
-            <div className="space-y-3">
+            <form onSubmit={handleSubmit(handleManualConfirm)} className="space-y-3">
               <p className="text-sm text-muted-foreground">Add a restaurant manually.</p>
-              {[
-                { key: 'name', label: 'Name *', placeholder: 'Restaurant name' },
-                { key: 'cuisine', label: 'Cuisine', placeholder: 'Japanese, Italian...' },
-                { key: 'address', label: 'Address', placeholder: '123 Main St, City' },
-                { key: 'notes', label: 'Notes', placeholder: 'Why you want to try it...' },
-              ].map(({ key, label, placeholder }) => (
+              {MANUAL_FIELDS.map(({ key, label, placeholder, max }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</label>
                   <input
-                    value={manual[key]}
-                    onChange={e => setManual(m => ({ ...m, [key]: e.target.value }))}
+                    {...register(key)}
                     placeholder={placeholder}
+                    maxLength={max}
                     className="w-full mt-1 bg-muted rounded-xl px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/50"
                   />
+                  {errors[key] && (
+                    <p className="text-[10px] text-destructive mt-0.5">{errors[key].message}</p>
+                  )}
                 </div>
               ))}
               <button
-                onClick={handleManualConfirm}
-                disabled={!manual.name.trim() || geocoding}
+                type="submit"
+                disabled={geocoding}
                 className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-semibold text-sm disabled:opacity-40 active:scale-[0.98] transition-all mt-2 flex items-center justify-center gap-2"
               >
                 {geocoding ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Looking up address...</> : 'Drop pin 📍'}
               </button>
-            </div>
+            </form>
           )}
 
           {/* STEP 2 — Loading */}

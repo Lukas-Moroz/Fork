@@ -1,22 +1,27 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import { db } from '@/lib/db';
 
 import React, { useState } from 'react';
-import { X, Mail, Send, Check, UserPlus } from 'lucide-react';
+import { X, Mail, Send, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useFork } from '../../context/ForkContext';
+import { emailSchema } from '@/lib/schemas';
 
 export default function InviteByEmailSheet({ open, onClose }) {
   const { sendFriendRequest } = useFork();
-  const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
+  const [sentEmail, setSentEmail] = useState('');
 
-  const handleSend = async () => {
-    if (!email.trim() || !email.includes('@')) { setError('Enter a valid email'); return; }
+  const { register, handleSubmit, formState: { errors }, reset } = useForm({
+    resolver: zodResolver(emailSchema),
+  });
+
+  const onSubmit = async ({ email }) => {
     setSending(true);
-    setError('');
+    setSentEmail(email);
     await Promise.all([
       db.integrations.Core.SendEmail({
         to: email.trim(),
@@ -27,7 +32,7 @@ export default function InviteByEmailSheet({ open, onClose }) {
     ]);
     setSent(true);
     setSending(false);
-    setTimeout(() => { setSent(false); setEmail(''); onClose(); }, 2000);
+    setTimeout(() => { setSent(false); reset(); onClose(); }, 2000);
   };
 
   return (
@@ -41,7 +46,7 @@ export default function InviteByEmailSheet({ open, onClose }) {
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-10"
+            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -55,33 +60,31 @@ export default function InviteByEmailSheet({ open, onClose }) {
                   <Check className="w-7 h-7 text-green-600" />
                 </div>
                 <p className="font-bold">Invite sent!</p>
-                <p className="text-sm text-muted-foreground">We sent an invite to {email}</p>
+                <p className="text-sm text-muted-foreground">We sent an invite to {sentEmail}</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <p className="text-sm text-muted-foreground">Send a friend an email invite to join Fork</p>
                 <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-3">
                   <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
                   <input
                     autoFocus
                     type="email"
-                    value={email}
-                    onChange={e => { setEmail(e.target.value); setError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && handleSend()}
+                    {...register('email')}
                     placeholder="friend@email.com"
                     className="flex-1 bg-transparent text-sm outline-none"
                   />
                 </div>
-                {error && <p className="text-xs text-destructive">{error}</p>}
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                 <button
-                  onClick={handleSend}
-                  disabled={!email.trim() || sending}
+                  type="submit"
+                  disabled={sending}
                   className="w-full flex items-center justify-center gap-2 py-3 bg-primary text-primary-foreground rounded-xl font-semibold text-sm disabled:opacity-50"
                 >
                   {sending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
                   {sending ? 'Sending...' : 'Send invite'}
                 </button>
-              </div>
+              </form>
             )}
           </motion.div>
         </motion.div>

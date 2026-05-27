@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Loader2, MapPin, Star, Plus, Crosshair, Users, ExternalLink, Phone, Clock } from 'lucide-react';
+import { Search, Loader2, MapPin, Star, Plus, Crosshair, ExternalLink, Phone, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { searchNearby, getPlaceDetails, getPhotoUrl, priceLevelToSymbol } from '@/lib/googlePlaces';
+import { searchNearby, getPlaceDetails, getPhotoUrl } from '@/lib/googlePlaces';
 
 const CUISINE_SUGGESTIONS = ['Ramen', 'Sushi', 'Pizza', 'Tacos', 'Burgers', 'Thai', 'Korean BBQ', 'Brunch'];
 const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop';
 
+const NOMINATIM_HEADERS = { 'User-Agent': 'ForkApp/1.0 (food discovery app)' };
+
 // Geocode a location string to lat/lng using Nominatim
 async function geocodeLocation(locationStr) {
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationStr)}&format=json&limit=1`);
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationStr)}&format=json&limit=1`, { headers: NOMINATIM_HEADERS });
   const data = await res.json();
   if (data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
   return null;
@@ -53,7 +55,7 @@ export default function RestaurantSearch({ onSelect }) {
         setCoords({ lat, lng });
         localStorage.setItem('fork_last_coords', JSON.stringify({ lat, lng }));
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: NOMINATIM_HEADERS });
           const data = await res.json();
           const city = data.address?.city || data.address?.town || data.address?.village || '';
           const state = data.address?.state || '';

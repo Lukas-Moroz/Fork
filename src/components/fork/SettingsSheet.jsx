@@ -31,7 +31,7 @@ export function NotificationsSheet({ open, profile, onSave, onClose }) {
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-10"
+            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -100,7 +100,7 @@ export function PrivacySheet({ open, profile, onSave, onClose }) {
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-10"
+            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
@@ -157,7 +157,7 @@ export function HelpSheet({ open, onClose }) {
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 pb-10"
+            className="bg-card w-full max-w-[390px] rounded-t-2xl p-5 sheet-safe-pb"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">

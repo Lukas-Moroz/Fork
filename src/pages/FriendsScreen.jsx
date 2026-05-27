@@ -1,26 +1,31 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, Check, MapPin, X, ChevronRight, Search, Mail, Link as LinkIcon, Send, UserMinus } from 'lucide-react';
+import { Check, MapPin, X, ChevronRight, Search, Mail, Link as LinkIcon, Send, UserMinus } from 'lucide-react';
 import { useFork } from '../context/ForkContext';
 import InviteByEmailSheet from '../components/fork/InviteByEmailSheet';
+import { isValidEmail } from '../utils/validate';
 
 export default function FriendsScreen() {
   const navigate = useNavigate();
-  const { friends, pendingRequests, acceptRequest, declineRequest, removeFriend, places } = useFork();
+  const { friends, pendingRequests, acceptRequest, declineRequest, removeFriend, places, sendFriendRequest } = useFork();
   const [confirmUnfriend, setConfirmUnfriend] = useState(null);
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState('');
   const [inviteEmailOpen, setInviteEmailOpen] = useState(false);
   const [findEmail, setFindEmail] = useState('');
   const [findStatus, setFindStatus] = useState(null); // null | 'sending' | 'sent' | 'error'
-  const { sendFriendRequest } = useFork();
 
   const handleFindSend = async () => {
-    if (!findEmail.trim() || !findEmail.includes('@')) return;
+    if (!isValidEmail(findEmail)) return;
     setFindStatus('sending');
-    await sendFriendRequest(findEmail.trim());
-    setFindStatus('sent');
-    setTimeout(() => { setFindStatus(null); setFindEmail(''); }, 2500);
+    try {
+      await sendFriendRequest(findEmail.trim());
+      setFindStatus('sent');
+      setTimeout(() => { setFindStatus(null); setFindEmail(''); }, 2500);
+    } catch {
+      setFindStatus('error');
+      setTimeout(() => setFindStatus(null), 3000);
+    }
   };
 
   const filteredFriends = useMemo(() =>
@@ -77,13 +82,18 @@ export default function FriendsScreen() {
           <button
             onClick={handleFindSend}
             disabled={!findEmail.trim() || findStatus === 'sending' || findStatus === 'sent'}
-            className={`px-4 rounded-xl font-semibold text-sm flex items-center gap-1.5 disabled:opacity-50 transition-all ${findStatus === 'sent' ? 'bg-green-500 text-white' : 'bg-primary text-primary-foreground'}`}
+            className={`px-4 rounded-xl font-semibold text-sm flex items-center gap-1.5 disabled:opacity-50 transition-all ${
+              findStatus === 'sent' ? 'bg-green-500 text-white'
+              : findStatus === 'error' ? 'bg-destructive text-destructive-foreground'
+              : 'bg-primary text-primary-foreground'
+            }`}
           >
             {findStatus === 'sent' ? <Check className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-            {findStatus === 'sent' ? 'Sent!' : 'Add'}
+            {findStatus === 'sent' ? 'Sent!' : findStatus === 'error' ? 'Failed' : 'Add'}
           </button>
         </div>
         {findStatus === 'sent' && <p className="text-xs text-green-600 font-medium mt-1.5 px-1">Friend request sent!</p>}
+        {findStatus === 'error' && <p className="text-xs text-destructive font-medium mt-1.5 px-1">Failed to send request. Try again.</p>}
       </div>
 
       {/* Pending Requests */}
@@ -167,7 +177,6 @@ export default function FriendsScreen() {
                 >
                   <div className="relative">
                     <img src={friend.avatar} alt={friend.name} className="w-11 h-11 rounded-full object-cover" />
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card ${friend.online ? 'bg-green-500' : 'bg-gray-400'}`} />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{friend.name}</p>
@@ -180,17 +189,6 @@ export default function FriendsScreen() {
                           <span className="text-[10px] text-green-600 font-medium">{visitedByFriend} visited</span>
                         </>
                       )}
-                      {friend.online ? (
-                        <>
-                          <span className="text-muted-foreground text-[10px]">·</span>
-                          <span className="text-[10px] text-green-500 font-medium">Online now</span>
-                        </>
-                      ) : friend.lastActive ? (
-                        <>
-                          <span className="text-muted-foreground text-[10px]">·</span>
-                          <span className="text-[10px] text-muted-foreground">Active {friend.lastActive}</span>
-                        </>
-                      ) : null}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">

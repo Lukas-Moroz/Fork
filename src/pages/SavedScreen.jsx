@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, CheckSquare, Square, Trash2, Folder } from 'lucide-react';
+import { Search, SlidersHorizontal, CheckSquare, Square, Trash2, Folder, Activity } from 'lucide-react';
 import { useFork } from '../context/ForkContext';
 import PlaceCard from '../components/fork/PlaceCard';
 import { LoadingSpinner, ErrorState } from '../components/fork/LoadingState';
 import CollectionsTab from '../components/fork/CollectionsTab';
+import ActivityFeed from '../components/fork/ActivityFeed';
 
 const FILTERS = ['All', 'Mine', 'Friends', 'Visited', 'Wishlist'];
 const PRICE_FILTERS = ['Any', '$', '$$', '$$$', '$$$$'];
@@ -14,8 +15,8 @@ const SORT_OPTIONS = [
 ];
 
 export default function SavedScreen() {
-  const { places, placesLoading, placesError, reloadPlaces, updatePlace, deletePlace } = useFork();
-  const [mainTab, setMainTab] = useState('places'); // 'places' | 'collections'
+  const { places, placesLoading, placesError, reloadPlaces, updatePlace, deletePlace, friends } = useFork();
+  const [mainTab, setMainTab] = useState('places'); // 'places' | 'collections' | 'activity'
   const [activeFilter, setActiveFilter] = useState('All');
   const [cuisineFilter, setCuisineFilter] = useState('All');
   const [search, setSearch] = useState('');
@@ -23,6 +24,7 @@ export default function SavedScreen() {
   const [showSort, setShowSort] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState(new Set());
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [priceFilter, setPriceFilter] = useState('Any');
 
   const cuisines = useMemo(() => {
@@ -79,9 +81,11 @@ export default function SavedScreen() {
   };
 
   const handleBulkDelete = () => {
+    if (!confirmBulkDelete) { setConfirmBulkDelete(true); return; }
     selected.forEach(id => deletePlace(id));
     setSelected(new Set());
     setSelectMode(false);
+    setConfirmBulkDelete(false);
   };
 
   return (
@@ -156,10 +160,18 @@ export default function SavedScreen() {
             <Folder className="w-3.5 h-3.5" />
             Collections
           </button>
+          <button
+            onClick={() => setMainTab('activity')}
+            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${mainTab === 'activity' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'}`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            Activity
+          </button>
         </div>
       </div>
 
       {mainTab === 'collections' && <CollectionsTab />}
+      {mainTab === 'activity' && <ActivityFeed places={places} friends={friends} />}
       {mainTab !== 'places' ? null : <>
 
       {/* Bulk action bar */}
@@ -186,9 +198,11 @@ export default function SavedScreen() {
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1.5 px-2 py-1.5 bg-destructive text-destructive-foreground rounded-lg text-xs font-semibold"
+              onBlur={() => setConfirmBulkDelete(false)}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${confirmBulkDelete ? 'bg-destructive text-destructive-foreground px-3' : 'bg-destructive/20 text-destructive'}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
+              {confirmBulkDelete && 'Confirm'}
             </button>
           </>}
         </div>

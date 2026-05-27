@@ -1,7 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star } from 'lucide-react';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 import PlatformBadge from './PlatformBadge';
+
+function friendlyDate(dateStr) {
+  if (!dateStr) return '';
+  try { return formatDistanceToNow(parseISO(dateStr), { addSuffix: true }); } catch { return dateStr; }
+}
 
 export default function PlaceCard({ place, compact = false }) {
   const navigate = useNavigate();
@@ -53,8 +59,12 @@ export default function PlaceCard({ place, compact = false }) {
             <span className="text-[10px] text-muted-foreground">
               {isMine ? 'Saved by you' : `Saved by ${place.savedBy}`}
             </span>
-            <span className="text-[10px] text-muted-foreground">·</span>
-            <span className="text-[10px] text-muted-foreground">{place.savedDate}</span>
+            {place.created_date && (
+              <>
+                <span className="text-[10px] text-muted-foreground">·</span>
+                <span className="text-[10px] text-muted-foreground">{friendlyDate(place.created_date)}</span>
+              </>
+            )}
           </div>
         )}
       </div>
